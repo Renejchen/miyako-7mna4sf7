@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="robots" content="noindex, nofollow, noarchive, noimageindex" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="宮古島" />
+<meta name="theme-color" content="#f7f3ea" />
+<title>宮古島 5天4夜</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231e5a7a'/%3E%3Cpath d='M20 118c14 0 14-10 28-10s14 10 28 10 14-10 28-10 14 10 28 10 14-10 28-10' stroke='%237fdbd4' stroke-width='9' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='90' cy='62' r='26' fill='%23f4d06f'/%3E%3C/svg%3E" />
+<style>
+:root{
+  --bg:#f7f3ea; --soft:#fbf8f2; --card:#ffffff;
+  --ink:#173b4d; --ink2:#2c5468; --muted:#8a9aa4; --line:#e4ded2;
+  --blue:#1e5a7a; --blue-d:#14384a; --teal:#2aa8a8; --teal-l:#7fdbd4;
+  --tip:#fdf3dd; --tip-b:#f0dfae; --tip-i:#c99a2e;
+  --now:#d6f2e4; --now-b:#57bf92;
+  --booked:#fbeccb; --booked-t:#a97b1e;
+  --purple:#9b8ee0; --danger:#c4553d;
+  --shadow:0 8px 24px rgba(23,59,77,.09);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:#e9e3d8;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Hiragino Sans",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+/* #10：overflow-x:hidden 會讓 overflow-y 變成 auto、形成捲動容器，害 Day 分頁的 sticky 失效。
+   clip 不會建立捲動容器，sticky 才會正常。 */
+.app{width:min(100%,460px);margin:0 auto;background:var(--soft);min-height:100vh;position:relative;overflow-x:clip}
+@supports not (overflow-x:clip){ .app{overflow-x:hidden} }
+.hero{isolation:isolate}   /* #8：把 hero 子層的 z-index 關在自己的堆疊環境裡（未重現，保險用） */
+
+/* ---------- hero map ---------- */
+.hero{position:relative;height:260px;background:#cfe6ee;overflow:hidden}
+#map{position:absolute;inset:0;background:#cfe6ee}
+.hero-fade{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(20,56,74,0) 42%,rgba(20,56,74,.62) 78%,rgba(20,56,74,.8) 100%);z-index:500}
+.hero-cap{position:absolute;left:16px;bottom:26px;z-index:501;pointer-events:none;color:#fff}
+.hero-cap .eyebrow{font-size:10px;letter-spacing:.28em;opacity:.85;margin-bottom:4px}
+.hero-cap h1{margin:0;font-size:27px;letter-spacing:.01em;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+.hero-cap .dates{font-family:var(--mono);font-size:12px;opacity:.9;margin-top:3px}
+.hero-hint{position:absolute;right:12px;top:12px;z-index:502;background:rgba(20,56,74,.72);color:#fff;
+  font-size:11px;padding:5px 11px;border-radius:999px;backdrop-filter:blur(6px)}
+.wave{position:absolute;left:0;right:0;bottom:-1px;z-index:503;display:block;width:100%;height:26px}
+.maplink{position:absolute;left:0;right:0;bottom:0;z-index:504;height:26px}
+
+/* ---------- day chips ---------- */
+.days{position:sticky;top:0;z-index:60;background:rgba(251,248,242,.97);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);padding:11px 0 10px}
+.days-scroll{display:flex;gap:9px;overflow-x:auto;padding:0 14px;scrollbar-width:none}
+.days-scroll::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;
+  padding:8px 15px;text-align:center;line-height:1.25;cursor:pointer;transition:.15s}
+.chip b{display:block;font-size:14px;font-weight:700}
+.chip span{display:block;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.chip.on{background:var(--blue-d);border-color:var(--blue-d);color:#fff}
+.chip.on span{color:#a9c9d6}
+.chip.today::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--teal);margin:4px auto 0}
+
+/* ---------- day header ---------- */
+.dayhead{padding:20px 16px 4px;position:relative}
+.dnum{font-size:52px;font-weight:800;color:var(--teal);line-height:.9;letter-spacing:-.02em}
+.dnum small{font-size:20px;color:#b9c6cc;font-weight:700}
+.ddate{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;letter-spacing:.06em}
+.dtitle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px}
+.dtitle{font-size:20px;font-weight:800;letter-spacing:.01em}
+.deco{position:absolute;right:14px;top:22px;width:112px;opacity:.95}
+.btn-edit{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px;font-size:13px;font-weight:600;color:var(--blue);box-shadow:0 2px 6px rgba(23,59,77,.06);cursor:pointer}
+.badge-state{display:inline-flex;align-items:center;gap:7px;margin-top:11px;background:var(--tip);
+  border:1px solid var(--tip-b);color:#7a5a12;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px}
+.badge-state i{width:7px;height:7px;border-radius:50%;background:var(--teal);display:inline-block}
+.badge-state.done{background:#efe9dd;border-color:#ded5c4;color:#7b7264}
+.badge-state.done i{background:#b3a894}
+.badge-state.ro{background:#eef0fb;border-color:#d6dbf4;color:#4a4a86;margin-left:7px}
+.badge-state.ro i{background:var(--purple)}
+body.readonly .btn-edit{display:none}
+.share-out{margin-top:12px}
+.share-out textarea{width:100%;min-height:96px;font-family:var(--mono);font-size:11.5px;line-height:1.5;
+  border:1px solid var(--line);border-radius:11px;padding:11px;background:#fff;word-break:break-all}
+.share-meta{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.6}
+.nav-btn{display:flex;align-items:center;justify-content:center;gap:9px;margin:12px 16px 6px;
+  padding:15px 14px;border:0;border-radius:14px;width:calc(100% - 32px);cursor:pointer;
+  background:linear-gradient(100deg,var(--blue) 0%,var(--teal) 100%);text-decoration:none;
+  color:#fff;font-size:15.5px;font-weight:700;box-shadow:0 8px 20px rgba(30,90,122,.26)}
+.nav-btn svg{flex:0 0 auto}
+.nav-note{margin:8px 16px 0;font-size:12px;color:var(--muted);line-height:1.6}
+
+/* ---------- timeline ---------- */
+.tl{padding:12px 16px 120px;position:relative}
+.row{display:grid;grid-template-columns:62px 1fr;gap:0;position:relative}
+.rail{position:relative}
+.rail::before{content:"";position:absolute;left:50px;top:0;bottom:-2px;width:2px;background:#d9e2e6}
+.row:last-child .rail::before{bottom:auto;height:26px}
+.rtime{font-family:var(--mono);font-size:12px;color:var(--muted);position:absolute;right:26px;top:19px;white-space:nowrap}
+.dot{position:absolute;left:44px;top:22px;width:14px;height:14px;border-radius:50%;background:#fff;
+  border:3px solid #b8c8cf;z-index:2}
+.row.is-now .dot{border-color:var(--now-b);box-shadow:0 0 0 4px rgba(87,191,146,.18)}
+.row.is-next .dot{border-color:var(--teal)}
+.card{background:var(--card);border:1px solid transparent;border-radius:15px;padding:14px 15px;
+  margin:8px 0 12px;box-shadow:var(--shadow)}
+.row.is-now .card{border-color:var(--now-b);box-shadow:0 8px 22px rgba(87,191,146,.2)}
+.row.is-next .card{border-color:var(--teal-l)}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+.tag{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;background:var(--blue-d);color:#fff}
+.tag.grey{background:#8fa3ac}
+.tag.booked{background:var(--booked);color:var(--booked-t)}
+.tag.now{background:var(--now);color:#1d7a55}
+.tag.next{background:#dff3f1;color:#1c7d7d}
+.cname{font-size:17.5px;font-weight:800;line-height:1.3;letter-spacing:.01em}
+.csub{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
+.meta{display:flex;align-items:flex-start;gap:7px;font-size:13px;color:var(--ink2);margin-top:8px;line-height:1.5}
+.meta svg{flex:0 0 auto;margin-top:2px;opacity:.55}
+.tip{display:flex;gap:8px;background:var(--tip);border:1px solid var(--tip-b);border-radius:11px;
+  padding:11px 12px;margin-top:11px;font-size:13.5px;line-height:1.62;color:#6d5518}
+.tip svg{flex:0 0 auto;margin-top:2px;color:var(--tip-i)}
+.acts{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
+.act{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);
+  border-radius:11px;padding:9px 15px;font-size:13.5px;font-weight:600;color:var(--blue);
+  text-decoration:none;cursor:pointer}
+.act.tel{color:var(--teal)}
+
+/* ---------- toolbox ---------- */
+/* #9：iPhone 動態視窗與安全區 */
+.fab{position:fixed;right:calc(50% - min(50%,230px) + 18px);
+  bottom:calc(20px + env(safe-area-inset-bottom));z-index:90;width:58px;height:58px;
+  border-radius:50%;border:0;background:var(--purple);color:#fff;cursor:pointer;
+  box-shadow:0 10px 26px rgba(155,142,224,.5);display:grid;place-items:center}
+.sheet{position:fixed;inset:0;z-index:200;display:none}
+.sheet.on{display:block}
+.sheet-bg{position:absolute;inset:0;background:rgba(20,40,52,.42)}
+.sheet-body{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:min(100%,460px);
+  max-height:92vh;overflow-y:auto;background:var(--soft);border-radius:22px 22px 0 0;
+  -webkit-overflow-scrolling:touch;
+  padding:0 16px calc(30px + env(safe-area-inset-bottom))}
+@supports (height:100dvh){ .sheet-body{max-height:88dvh} }
+.grab{width:44px;height:5px;border-radius:99px;background:#d9d2c5;margin:10px auto 12px}
+/* 分頁列黏在 sheet 頂端：往下滑也選得到天氣／租車 */
+.sheet-stick{position:sticky;top:0;z-index:6;background:var(--soft);margin:0 -16px;padding:0 16px;
+  box-shadow:0 6px 12px -8px rgba(23,59,77,.28)}
+.tb-tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none}
+.tb-tabs::-webkit-scrollbar{display:none}
+.tb-tab{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;
+  font-size:13px;font-weight:600;cursor:pointer}
+.tb-tab.on{background:var(--blue-d);border-color:var(--blue-d);color:#fff}
+.panel{display:none}.panel.on{display:block}
+.pcard{background:#fff;border-radius:15px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
+.pcard h3{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:9px}
+.pcard h3 .ic{width:30px;height:30px;border-radius:50%;background:#eaf4f6;display:grid;place-items:center;flex:0 0 auto}
+.kv{display:grid;grid-template-columns:74px 1fr;gap:9px 12px;font-size:14px;align-items:baseline}
+.kv dt{color:var(--muted);font-size:13px}
+.kv dd{margin:0;font-weight:600;line-height:1.5;word-break:break-word}
+.kv dd.mono{font-family:var(--mono)}
+.fl{display:flex;align-items:center;justify-content:space-between;background:#f6f2ea;border-radius:12px;padding:13px 14px;margin-bottom:11px}
+.fl .side{text-align:center}
+.fl .t{font-family:var(--mono);font-size:23px;font-weight:700;letter-spacing:-.02em}
+.fl .p{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.fl .mid{flex:1;padding:0 12px;text-align:center;color:var(--teal)}
+.fl .mid .line{border-top:1.5px dashed #b7cfd6;margin:0 0 4px}
+.fl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.fl-head .lbl{background:#e3eff3;color:var(--blue);font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px}
+.fl-head .no{font-family:var(--mono);font-weight:700;color:var(--blue-d)}
+/* 天氣改直式清單：五天一定全部看得到，不用橫向滑 */
+.wx{display:flex;flex-direction:column;gap:7px}
+.wxd{display:grid;grid-template-columns:auto 30px 1fr auto;align-items:center;gap:10px;
+  background:#f6f2ea;border-radius:12px;padding:11px 13px}
+.wxd .d{font-family:var(--mono);font-size:13px;color:var(--ink2);white-space:nowrap}
+.wxd .d b{font-weight:700}
+.wxd .e{font-size:21px;line-height:1;text-align:center}
+.wxd .tt{font-family:var(--mono);font-size:14px;white-space:nowrap}
+.wxd .tt b{font-weight:700;font-size:15.5px}
+.wxd .tt span{color:var(--muted)}
+.wxd .pp{font-size:12.5px;color:var(--teal);white-space:nowrap;font-family:var(--mono)}
+.wxd.today{background:#e3f4ee;box-shadow:inset 0 0 0 1.5px #9bd8bd}
+.prog{height:7px;border-radius:99px;background:#e7e0d4;overflow:hidden;margin:6px 0 16px}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--teal-l));border-radius:99px;transition:.3s}
+.buy-item{display:flex;gap:11px;align-items:flex-start;padding:10px 0;border-bottom:1px dashed #ece5d8;cursor:pointer}
+.buy-item:last-child{border-bottom:0}
+.box{flex:0 0 auto;width:22px;height:22px;border-radius:6px;border:2px solid #c6cfd4;margin-top:1px;display:grid;place-items:center}
+.buy-item.done .box{background:var(--blue);border-color:var(--blue)}
+.buy-item.done .bt{text-decoration:line-through;color:#b6bec3}
+.buy-item.done .bs{text-decoration:line-through;color:#c8ced2}
+.bt{font-weight:700;font-size:14.5px}
+.bs{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+.note{font-size:12px;color:var(--muted);line-height:1.6;margin-top:10px}
+
+/* ---------- edit mode ---------- */
+.ed-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 6px}
+.ed-head h2{margin:0;font-size:19px}
+.btn-back{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 15px;font-size:13.5px;font-weight:600;color:var(--blue);cursor:pointer}
+.ed-note{font-size:12.5px;color:var(--muted);line-height:1.65;padding:6px 16px 12px}
+.ed-list{padding:0 16px 24px}
+.ed-item{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--line);border-radius:13px;
+  padding:12px 13px;margin-bottom:9px;box-shadow:0 2px 8px rgba(23,59,77,.05);touch-action:pan-y}
+.ed-item.dragging{opacity:.92;box-shadow:0 14px 30px rgba(23,59,77,.2);transform:scale(1.02);position:relative;z-index:5}
+.ed-item.ghost{opacity:.28}
+.handle{flex:0 0 auto;width:26px;color:#a9b6bc;cursor:grab;touch-action:none;display:grid;place-items:center}
+.ed-info{flex:1;min-width:0}
+.ed-info b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-info span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ed-act{background:none;border:0;color:var(--blue);font-size:13.5px;font-weight:600;padding:6px 4px;cursor:pointer}
+.ed-act.del{color:var(--danger)}
+.ed-btns{display:flex;gap:9px;margin-top:14px}
+.ed-btns button{flex:1;min-width:0;padding:14px 6px;border-radius:12px;border:1px solid var(--line);background:#fff;
+  font-size:13.5px;font-weight:700;color:var(--blue);cursor:pointer;white-space:nowrap}
+.ed-btns button.warn{color:var(--danger)}
+body.editing .fab{display:none}
+.saved{margin-top:12px;padding:13px;border-radius:12px;background:#eaf6f0;color:#1d7a55;
+  text-align:center;font-weight:700;font-size:14px}
+
+/* ---------- form ---------- */
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;background:#fff;border:1px solid var(--line);
+  border-radius:11px;padding:12px 13px;font-size:15px;font-weight:600;outline:none}
+.field textarea{font-weight:400;line-height:1.6;min-height:78px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal)}
+.field .ok{font-size:12px;color:#1d8a5a;margin-top:5px;font-weight:600}
+.field .bad{font-size:12px;color:var(--danger);margin-top:5px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.sheet-actions{display:flex;gap:10px;margin-top:6px}
+.sheet-actions button{flex:1;padding:15px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.sheet-actions button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.hide{display:none !important}
+.leaflet-container{background:#cfe6ee !important;font:inherit !important}
+.pin{display:grid;place-items:center;width:28px;height:28px;border-radius:50% 50% 50% 6px;
+  transform:rotate(-45deg);background:var(--blue);color:#fff;font-weight:800;font-size:13px;
+  border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.3)}
+.pin span{transform:rotate(45deg)}
+.pin.now{background:var(--now-b)}
+.pop b{display:block;font-size:15px;margin-bottom:2px}
+.pop .m{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:9px}
+.pop .btns{display:flex;gap:7px}
+.pop a{flex:1;text-align:center;text-decoration:none;border:1px solid var(--line);border-radius:9px;
+  padding:7px 10px;font-size:13px;font-weight:600;color:var(--blue)}
+.fallmap{position:absolute;inset:0;display:none}
+.fallmap.on{display:block}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div id="map"></div>
+    <svg class="fallmap" id="fallmap" viewBox="0 0 460 260" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hero-fade"></div>
+    <div class="hero-hint" id="mapHint">點圖釘看店家 · 可縮放</div>
+    <div class="hero-cap">
+      <div class="eyebrow">MIYAKOJIMA · OKINAWA</div>
+      <h1>宮古島 5天4夜</h1>
+      <div class="dates">8/5 – 8/9</div>
+    </div>
+    <svg class="wave" viewBox="0 0 460 26" preserveAspectRatio="none">
+      <path d="M0 14c38 0 38-9 76-9s38 9 76 9 38-9 77-9 38 9 77 9 38-9 77-9 38 9 77 9v12H0z" fill="#7fdbd4"/>
+      <path d="M0 20c38 0 38-8 76-8s38 8 76 8 38-8 77-8 38 8 77 8 38-8 77-8 38 8 77 8v6H0z" fill="#fbf8f2"/>
+    </svg>
+  </div>
+
+  <!-- ============ DAY CHIPS ============ -->
+  <div class="days"><div class="days-scroll" id="chips"></div></div>
+
+  <!-- ============ VIEW: ITINERARY ============ -->
+  <div id="viewTrip">
+    <div class="dayhead">
+      <svg class="deco" viewBox="0 0 120 70" fill="none">
+        <circle cx="103" cy="13" r="9" fill="#f4d06f"/>
+        <path d="M14 44V22" stroke="#2aa8a8" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M2 23c0-7 5.4-12.5 12-12.5S26 16 26 23z" fill="#2aa8a8"/>
+        <circle cx="59" cy="21" r="6.4" fill="#1e5a7a"/><circle cx="76" cy="21" r="6.4" fill="#1e5a7a"/>
+        <path d="M50 44c0-7 4-12 9-12s9 5 9 12zM67 44c0-7 4-12 9-12s9 5 9 12z" fill="#1e5a7a"/>
+        <path d="M40 15.5c1.6-1.8 4.4-1.8 6 0 1.6 1.8 1.6 4.6 0 6.4L43 25l-3-3.1c-1.6-1.8-1.6-4.6 0-6.4z" fill="#e88fa0"/>
+        <path d="M0 56c15 0 15-6 30-6s15 6 30 6 15-6 30-6 15 6 30 6" stroke="#7fdbd4" stroke-width="3" stroke-linecap="round"/>
+        <path d="M0 66c15 0 15-6 30-6s15 6 30 6 15-6 30-6 15 6 30 6" stroke="#cfeae7" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <div class="dnum" id="dNum">1<small> / 5</small></div>
+      <div class="ddate" id="dDate"></div>
+      <div class="dtitle-row">
+        <div class="dtitle" id="dTitle"></div>
+        <button class="btn-edit" id="btnEdit">✎ 編輯行程</button>
+      </div>
+      <div id="dBadge"></div>
+    </div>
+    <div id="navBtns"></div>
+    <div class="tl" id="tl"></div>
+  </div>
+
+  <!-- ============ VIEW: EDIT ============ -->
+  <div id="viewEdit" class="hide">
+    <div class="ed-head">
+      <button class="btn-back" id="btnBack">‹ 回行程</button>
+      <h2 id="edTitle">編輯 Day 1 行程</h2>
+    </div>
+    <p class="ed-note">新增行程會依時間自動排序；按住左側 ≡ 可手動調整順序。貼上 Google Maps 的<b>完整連結</b>（含 <code>@緯度,經度</code>）可以把這一站標到上面的地圖；短連結會保留但不會有圖釘。所有修改只存在這支手機。</p>
+    <div class="ed-list" id="edList"></div>
+  </div>
+
+  <!-- ============ FAB + TOOLBOX ============ -->
+  <button class="fab" id="fab" aria-label="工具箱">
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2.4"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M2 13h20"/>
+    </svg>
+  </button>
+
+  <div class="sheet" id="tbSheet">
+    <div class="sheet-bg" data-close></div>
+    <div class="sheet-body">
+      <div class="sheet-stick">
+        <div class="grab"></div>
+        <div class="tb-tabs" id="tbTabs"></div>
+      </div>
+      <div id="tbPanels"></div>
+    </div>
+  </div>
+
+  <!-- ============ EDIT STOP SHEET ============ -->
+  <div class="sheet" id="fmSheet">
+    <div class="sheet-bg" data-close></div>
+    <div class="sheet-body">
+      <div class="grab"></div>
+      <h2 style="margin:0 0 16px;font-size:19px" id="fmTitle">編輯行程</h2>
+      <div class="two">
+        <div class="field"><label>哪一天</label><select id="fDay"></select></div>
+        <div class="field"><label>時間</label><input id="fTime" type="time" /></div>
+      </div>
+      <div class="field"><label>分類</label><select id="fCat"></select></div>
+      <div class="field">
+        <label>Google Maps 連結</label>
+        <input id="fUrl" type="url" inputmode="url" placeholder="貼上 Google 地圖網址" />
+        <div id="fUrlMsg"></div>
+      </div>
+      <div class="field"><label>名稱</label><input id="fName" /></div>
+      <div class="field"><label>副標題</label><input id="fSub" /></div>
+      <div class="two">
+        <div class="field"><label>車程</label><input id="fDrive" placeholder="約 15 分" /></div>
+        <div class="field"><label>營業時間</label><input id="fHours" placeholder="10:00–18:00" /></div>
+      </div>
+      <div class="two">
+        <div class="field"><label>電話</label><input id="fTel" inputmode="tel" placeholder="0980-…" /></div>
+        <div class="field"><label>已預約時間</label><input id="fBooked" placeholder="留空＝未預約" /></div>
+      </div>
+      <div class="field"><label>提醒</label><textarea id="fTip" placeholder="注意事項或備註"></textarea></div>
+      <div class="sheet-actions">
+        <button data-close>取消</button>
+        <button class="primary" id="fmSave">完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =====================================================================
+   宮古島 5天4夜 — 行程 App
+   資料來源與查證紀錄見 reference_itinerary.md / 計劃書
+   ===================================================================== */
+
+const TZ_OFFSET_JP = 9;                      // 日本 UTC+9
+const HOTEL   = {lat:24.801441, lon:125.261123};
+const AIRPORT = {lat:24.824533, lon:125.146841};
+const CATS = ["機場","租車","住宿","景點","海灘","午餐","晚餐","咖啡","手作","購物","交通"];
+
+/* ---------------- 預設行程（Step 2 已經 Rene 確認） ---------------- */
+const DEFAULT_TRIP = {
+  title:"宮古島 5天4夜", range:"8/5 – 8/9",
+  days:[
+  { date:"2026-08-05", dow:"WED", title:"抵達 · 下地島＆伊良部", stops:[
+    {time:"09:35",cat:"機場",name:"みやこ下地島空港",sub:"JX308 抵達 09:35 · 入境領行李",lat:24.824533,lon:125.146841,
+     tip:"台中 07:20 起飛、09:35 落地。日本比台灣快 1 小時，手機時間會自動跳。"},
+    {time:"10:00",cat:"租車",name:"Budget 租車取車",sub:"下地島空港店 · SUV · 四大一小",booked:"10:30",tel:"0980-66-0018",
+     mapq:"バジェットレンタカー 下地島空港店",
+     tip:"⚠️ 櫃檯不在航廈裡。領完行李先打 0980-66-0018，他們來接，旺季要等 15–20 分。記得帶：台灣駕照＋日文譯本＋護照（缺一不可）。"},
+    {time:"11:00",cat:"景點",name:"17END",sub:"跑道盡頭的夢幻漸層海",drive:"約 10 分",mapq:"17END 下地島",
+     tip:"車停管制柵欄前，步行約 10 分。退潮才會出現那片白沙洲，當天早上可查 shimojishima.jp/flight 看有沒有飛機從頭頂進場。"},
+    {time:"12:15",cat:"午餐",name:"Blue Turtle",sub:"伊良部島海景餐廳",drive:"約 15 分",hours:"11:00–21:00 每日",
+     mapq:"Blue Turtle 伊良部島",tip:"龍蝦／漢堡咖哩，飯後有冰沙雪酪。海景位子要早點到。"},
+    {time:"13:45",cat:"景點",name:"通り池",sub:"下地島天然雙池 · 龍宮傳說",lat:24.824260,lon:125.136828,hours:"24h · 免費停車場",
+     tip:"木棧道來回約 30 分，兩座相連的神祕天然池與海底洞穴相通。旁邊的「帯岩」是 1771 年海嘯搬上岸的兩萬噸巨岩，順路一看。"},
+    {time:"15:00",cat:"景點",name:"佐和田の浜",sub:"散落巨岩的淺灘 · 夕陽名所",lat:24.840524,lon:125.160018,drive:"約 10 分",
+     tip:"灘上那些大石頭跟帯岩是同一場 1771 年海嘯留下的。水淺，小孩踩水很安全。"},
+    {time:"16:30",cat:"住宿",name:"Hilton 沖繩宮古島度假酒店",sub:"入住 · 泳池休息",lat:24.801441,lon:125.261123,
+     tel:"0980-75-5500",drive:"過伊良部大橋約 20 分",
+     tip:"今天四點多就起床了，下午進飯店休息。飯店就在伊良部大橋橋頭，明後天進出都順。"},
+    {time:"18:30",cat:"晚餐",name:"一魚一会 うさぎや 宮古島店",sub:"古民家風 · 島食材創作料理",hours:"17:00–23:00",
+     tel:"0980-79-0881",mapq:"うさぎや 宮古島店 平良下里",
+     tip:"有座敷（榻榻米）和個室，小孩可以坐地上。晚上有三線現場演奏，小孩 live charge ¥300。"}
+  ]},
+  { date:"2026-08-06", dow:"THU", title:"砂山 · 池間島", stops:[
+    {time:"09:30",cat:"海灘",name:"砂山ビーチ",sub:"翻過沙丘的天然岩拱",lat:24.839390,lon:125.280561,drive:"飯店約 15 分",
+     tip:"⚠️ 停車場有廁所和簡易淋浴，但沒有正式更衣室。有離岸流，小孩不要往深處走。爬沙丘會喘，穿好走的鞋。"},
+    {time:"11:00",cat:"景點",name:"島尻マングローブ林",sub:"紅樹林木棧道 · 約 20 分來回",lat:24.876175,lon:125.290302,
+     drive:"往池間路上 · 約 15 分",tip:"退潮時招潮蟹和彈塗魚最多，小孩會看很久。有停車場和廁所。"},
+    {time:"12:00",cat:"午餐",name:"HARRY'S Shrimp Truck",sub:"夏威夷蒜味蝦飯餐車",hours:"11:00–17:00 全年無休",
+     mapq:"ハリーズシュリンプトラック 宮古島",tip:"戶外餐車座位，遇下雨要有備案。"},
+    {time:"13:30",cat:"景點",name:"池間大橋",sub:"1,425m 跨海大橋 · 宮古藍最濃的一段",lat:24.920109,lon:125.260352},
+    {time:"14:30",cat:"購物",name:"雪塩ミュージアム",sub:"雪鹽製鹽所 · 參觀免費",lat:24.902213,lon:125.268207,
+     hours:"8月 9:00–18:30",tip:"⚠️ 停車位只有 5 個，可能要等。雪鹽霜淇淋必吃；伴手禮在這裡買齊，機場常缺貨。"},
+    {time:"15:30",cat:"咖啡",name:"Gelato Cafe Ninufa",sub:"島食材義式冰淇淋",lat:24.929915,lon:125.233479},
+    {time:"17:00",cat:"購物",name:"モンテドール 本店",sub:"宮古島名物香蕉蛋糕",hours:"10:00–18:00",
+     mapq:"モンテドール 本店 宮古島",tip:"本店才有現烤的整條香蕉蛋糕。"},
+    {time:"18:30",cat:"晚餐",name:"琉球とんかつ三矢",sub:"炸豬排定食",hours:"11:00–22:00（L.O. 21:00）",
+     mapq:"琉球とんかつ三矢 宮古島",tip:"⚠️ 這家週五公休。今天是週四沒問題，但如果你把它挪到 8/7（五）會撲空。"}
+  ]},
+  { date:"2026-08-07", dow:"FRI", title:"前濱 · 來間 · 東平安名崎", stops:[
+    {time:"09:30",cat:"海灘",name:"与那覇前浜ビーチ",sub:"號稱東洋第一的白沙灘",lat:24.736045,lon:125.261195,
+     drive:"飯店約 25 分",tip:"沙細、坡度緩、浪小，五個人裡最適合小孩的一個海灘。有更衣室和沖洗設施。"},
+    {time:"11:00",cat:"景點",name:"来間大橋",sub:"1,690m · 橋上就是那片藍",lat:24.725853,lon:125.264399,drive:"約 5 分"},
+    {time:"11:20",cat:"景點",name:"竜宮城展望台",sub:"來間島最高點 · 標高 60m",lat:24.726036,lon:125.251667,
+     tip:"一次看到來間大橋、前濱、宮古島本島和伊良部島。爬三層樓，小孩可以自己走。"},
+    {time:"12:00",cat:"午餐",name:"楽園の果実",sub:"來間島 · 熱帶水果甜點與有機蔬菜料理",hours:"10:00–18:00（L.O. 17:30）· 火曜休",
+     mapq:"楽園の果実 来間島",tip:"今天是週五有開。夏天旺季位子少，建議先打電話問。"},
+    {time:"14:00",cat:"景點",name:"東平安名崎",sub:"島最東端的岬角與燈塔",lat:24.718813,lon:125.469141,drive:"約 40 分",
+     tip:"車程有點長，路上讓小孩睡一下。岬角步道來回約 40 分，燈塔可登頂（要收費）。海風很大，帽子會飛。"},
+    {time:"16:30",cat:"住宿",name:"回飯店 · 泳池",sub:"下午留白",lat:24.801441,lon:125.261123,drive:"約 40 分"},
+    {time:"18:30",cat:"晚餐",name:"泡盛と沖縄料理 郷家",sub:"平良西里 · 沖繩料理與泡盛",hours:"17:30–24:00",
+     tel:"0980-74-2358",mapq:"郷家 宮古島 平良西里",
+     tip:"🎵 三線現場演奏每晚 19:30 開始，一場約 50 分 —— 這是安排 18:30 吃飯的原因。旺季要看表演需先訂位。店前有 15 個停車位。"}
+  ]},
+  { date:"2026-08-08", dow:"SAT", title:"陶藝手作 · 市區採買", stops:[
+    {time:"10:30",cat:"手作",name:"てぃだ(太陽)が窯",sub:"捏陶手作 · 約 2 小時",hours:"9:00–19:00（週一休）",
+     booked:"",mapq:"てぃだが窯 宮古島",
+     tip:"⚠️ 這個要你自己先預約，訂好後把時間填進「已預約」欄位。小孩也能捏，成品要寄回台灣（另計運費與燒製時間）。"},
+    {time:"13:00",cat:"午餐",name:"古謝そば屋",sub:"1932 年老製麵所直營 · 宮古そば",lat:24.789689,lon:125.282606,
+     hours:"11:00–16:00（水曜休）",tel:"0980-72-8304",tip:"今天是週六有開。招牌是宮古そば和ソーキそば，小孩吃得慣。"},
+    {time:"14:30",cat:"購物",name:"サンエー 宮古（食品館）",sub:"當地超市 · 伴手禮補齊",lat:24.801656,lon:125.280110,
+     tip:"雪鹽金楚糕、泡盛、海葡萄在這裡買最便宜。泡盛玻璃瓶記得託運不能手提上機。"},
+    {time:"15:30",cat:"購物",name:"かねひで みゃーく市場",sub:"在地市場",lat:24.796412,lon:125.294163},
+    {time:"16:30",cat:"住宿",name:"飯店泳池 · 整理行李",sub:"明天一早要還車，今晚先打包",lat:24.801441,lon:125.261123,
+     tip:"明天 08:00 就要退房，行李今晚整理好。泡盛和液體記得放託運箱。"},
+    {time:"18:30",cat:"晚餐",name:"焼肉CURURU",sub:"伊良部 4.9★ 宮古牛燒肉",hours:"16:00–23:00 每日",booked:"",
+     drive:"飯店過橋約 15 分",mapq:"焼肉CURURU 伊良部",
+     tip:"⚠️ 這家也要你自己先訂位。老闆會英文、有 QR 翻譯菜單，宮古牛單人套餐可以多部位嘗試，牛舌和小黃瓜小菜必點。"}
+  ]},
+  { date:"2026-08-09", dow:"SUN", title:"離島日", stops:[
+    {time:"07:00",cat:"住宿",name:"飯店早餐",sub:"吃飽再上路",lat:24.801441,lon:125.261123},
+    {time:"08:00",cat:"住宿",name:"退房 · 行李裝車",sub:"Hilton",lat:24.801441,lon:125.261123,tel:"0980-75-5500"},
+    {time:"08:20",cat:"交通",name:"出發往下地島",sub:"過伊良部大橋 · 約 30 分",lat:24.796706,lon:125.239459},
+    {time:"09:00",cat:"租車",name:"Budget 還車",sub:"下地島空港店 · 還完請他們送機場",booked:"09:00",tel:"0980-66-0018",
+     mapq:"バジェットレンタカー 下地島空港店",
+     tip:"⚠️ 今天最緊的一步。Budget 9:00 才開門、你 10:35 起飛，所以要一開門就到。前一晚先加滿油（機場附近加油站也要 9 點才開，最好 8/8 就加）。"},
+    {time:"09:25",cat:"機場",name:"下地島機場報到",sub:"JX309 · 起飛前 70 分",lat:24.824533,lon:125.146841,
+     tip:"機場很小，報到到登機門很快。時間覺得太趕可以自己在編輯裡改。"},
+    {time:"10:35",cat:"機場",name:"JX309 起飛",sub:"下地島 10:35 → 台中 11:00",lat:24.824533,lon:125.146841}
+  ]}
+]};
+
+/* ---------------- 工具箱資料 ---------------- */
+const FLIGHTS = [
+  {dir:"去程",date:"8/5（三）",no:"JX308",dep:"07:20",from:"RMQ 台中",arr:"09:35",to:"SHI 下地島"},
+  {dir:"回程",date:"8/9（日）",no:"JX309",dep:"10:35",from:"SHI 下地島",arr:"11:00",to:"RMQ 台中"}
+];
+const BUY = [
+  {group:"雪鹽系列（雪塩ミュージアム／San-A 都有）",items:[
+    ["雪塩ちんすこう","經典款金楚糕，送人自用都適合"],
+    ["雪塩さんど","雪鹽夾心餅，機場常缺貨，看到先買"],
+    ["雪鹽罐（料理用）","宮古島製鹽所名物，輕巧好帶"],
+    ["雪鹽霜淇淋","只有製鹽所吃得到，不能帶走"],
+    ["雪鹽保養品／護手霜","雪塩ミュージアム或 San-A"]]},
+  {group:"泡盛 · 宮古三大酒造",items:[
+    ["菊之露 VIP GOLD","宮古代表酒造，古酒入門款"],
+    ["多良川","小瓶裝方便帶"],
+    ["沖之光","在地人常喝的一支"],
+    ["⚠️ 玻璃瓶一律託運","液體不能手提上機"]]},
+  {group:"食品伴手禮",items:[
+    ["モンテドール 香蕉蛋糕","本店才有現烤整條的"],
+    ["宮古そば（乾麵）","古謝製麵的可以帶回台灣煮"],
+    ["海葡萄","San-A 有賣，⚠️ 不能冷藏、當天吃"],
+    ["黑糖／黑糖花生","超市最便宜"]]},
+  {group:"出發前要帶",items:[
+    ["台灣駕照＋日文譯本＋護照","⚠️ 租車缺一不可，監理站當天可辦譯本"],
+    ["防曬（高係數）","八月宮古島紫外線極強"],
+    ["泳衣＋沙灘鞋","砂山、前濱都會下水"],
+    ["小孩的帽子和防曬衣","岬角海風大、太陽也大"],
+    ["現金日幣","小店和停車場常常不能刷卡"]]}
+];
+
+/* =====================================================================
+   狀態管理
+   ===================================================================== */
+const LS = "miyako2026.v1";
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS);
+    if(raw){ const s = JSON.parse(raw); if(s && s.days && s.days.length===5) return s; }
+  }catch(e){ console.warn("讀取本機資料失敗，改用預設行程", e); }
+  return JSON.parse(JSON.stringify(DEFAULT_TRIP));
+}
+/* #5：一定要回報成敗，不能失敗了還跟使用者說「已儲存」 */
+function saveState(){
+  if(READONLY) return "readonly";            // 家人版不寫入，避免蓋掉自己的行程
+  try{ localStorage.setItem(LS, JSON.stringify(TRIP)); return true; }
+  catch(e){ console.warn("儲存失敗", e); return false; }
+}
+
+/* #6：家人版寫到另一把鑰匙，家人照樣能勾必買清單，又不會蓋掉 Rene 自己的訂房編號等資料 */
+const LS_EXTRA_MINE   = "miyako2026.extra.v1";
+const LS_EXTRA_SHARED = "miyako2026.extra.shared.v1";
+const extraKey = () => READONLY ? LS_EXTRA_SHARED : LS_EXTRA_MINE;
+function loadExtra(){
+  try{ return JSON.parse(localStorage.getItem(extraKey())) || {}; }catch(e){ return {}; }
+}
+function saveExtra(){ try{ localStorage.setItem(extraKey(), JSON.stringify(EXTRA)); }catch(e){} }
+
+/* ---------------- 家人版（唯讀）編碼／解碼 ---------------- */
+const b64u = {
+  enc: bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""),
+  dec: s => Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")), c=>c.charCodeAt(0))
+};
+/* 只編碼「跟原始行程不一樣」的那幾天，連結才不會又臭又長 */
+function tripDiff(trip){
+  const d = {};
+  trip.days.forEach((day,i)=>{
+    if(JSON.stringify(day) !== JSON.stringify(DEFAULT_TRIP.days[i])) d[i] = day;
+  });
+  return d;
+}
+function applyDiff(diff){
+  const t = JSON.parse(JSON.stringify(DEFAULT_TRIP));
+  Object.entries(diff||{}).forEach(([i,day])=>{ if(t.days[+i]) t.days[+i] = day; });
+  return t;
+}
+async function encodeTrip(trip){
+  const json = JSON.stringify({v:1, d:tripDiff(trip), at:new Date().toISOString()});
+  const raw = new TextEncoder().encode(json);
+  if(typeof CompressionStream === "undefined") return "r" + b64u.enc(raw);
+  const blob = await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream("gzip"))).blob();
+  return "z" + b64u.enc(new Uint8Array(await blob.arrayBuffer()));
+}
+async function decodeTrip(s){
+  const kind = s[0], bytes = b64u.dec(s.slice(1));
+  let json;
+  if(kind === "z"){
+    /* #3：舊機器（iOS 16.4 以前）沒有 DecompressionStream。以前這裡失敗會靜靜退回原始行程，
+       家人就看到「舊行程」還以為是最新的。現在一律丟錯，由呼叫端顯示明確警告。 */
+    if(typeof DecompressionStream === "undefined")
+      throw new Error("這支手機的瀏覽器太舊，無法解開壓縮過的行程連結");
+    const blob = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).blob();
+    json = new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
+  }else{
+    json = new TextDecoder().decode(bytes);
+  }
+  const p = JSON.parse(json);
+  return {t: applyDiff(p.d), at: p.at};
+}
+/* 有 #trip= 就進入家人版：唯讀、不吃也不寫本機行程 */
+const SHARED = location.hash.startsWith("#trip=") ? location.hash.slice(6) : null;
+let READONLY = !!SHARED, SHARED_AT = null;
+
+let TRIP  = READONLY ? JSON.parse(JSON.stringify(DEFAULT_TRIP)) : loadState();
+let EXTRA = loadExtra();
+EXTRA.buy    = EXTRA.buy    || {};
+EXTRA.hotel  = EXTRA.hotel  || {conf:"", ci:"", co:""};
+EXTRA.rental = EXTRA.rental || {conf:""};
+
+let curDay = 0;
+
+/* =====================================================================
+   時間工具（一律用日本時間判斷）
+   ===================================================================== */
+function nowJP(){
+  const d = new Date();
+  return new Date(d.getTime() + (d.getTimezoneOffset() + TZ_OFFSET_JP*60) * 60000);
+}
+function jpDateStr(d){
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function todayIndex(){
+  const t = jpDateStr(nowJP());
+  return TRIP.days.findIndex(d => d.date === t);
+}
+function tripPhase(){
+  const t = jpDateStr(nowJP());
+  if(t < TRIP.days[0].date) return "before";
+  if(t > TRIP.days[TRIP.days.length-1].date) return "after";
+  return "during";
+}
+function minutes(hhmm){ const [h,m] = (hhmm||"00:00").split(":").map(Number); return h*60 + (m||0); }
+function fmtDate(iso){ const [,m,d] = iso.split("-"); return `${+m}/${+d}`; }
+
+/* 找出「目前這一站」與「下一站」：只在今天有效 */
+function liveIndex(dayIdx){
+  if(dayIdx !== todayIndex()) return {now:-1, next:-1};
+  const n = nowJP(); const cur = n.getHours()*60 + n.getMinutes();
+  const stops = TRIP.days[dayIdx].stops;
+  let now = -1;
+  for(let i=0;i<stops.length;i++){ if(minutes(stops[i].time) <= cur) now = i; }
+  const next = (now + 1 < stops.length) ? now + 1 : -1;
+  return {now, next};
+}
+
+/* =====================================================================
+   Google Maps 連結
+   ===================================================================== */
+function stopQuery(s){
+  if(s.mapq) return s.mapq;
+  if(s.lat != null && s.lon != null) return `${s.lat},${s.lon}`;
+  return s.name;
+}
+/* #12：mapq 如果本身就是一個網址（例如貼進來的 maps.app.goo.gl 短連結），
+   要直接開它，不能再包成搜尋關鍵字，否則會開到錯的地方。 */
+const isUrl = v => typeof v === "string" && /^https?:\/\//i.test(v.trim());
+function mapUrl(s){
+  if(isUrl(s.mapq)) return s.mapq.trim();
+  if(s.lat != null && s.lon != null && !s.mapq)
+    return `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stopQuery(s))}`;
+}
+/* #7 Google Maps URLs 官方限制：手機瀏覽器最多 3 個中途點，其他平台最多 9 個。
+   （https://developers.google.com/maps/documentation/urls/get-started）
+   超過就會被靜默忽略 → 會帶錯路線。所以自動分段，段與段之間共用一站接續。 */
+const isMobileUA = () => /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
+function navQuery(s){
+  if(s.lat != null && s.lon != null) return `${s.lat},${s.lon}`;
+  if(s.mapq && !isUrl(s.mapq)) return s.mapq;   // 短網址不能當中途點
+  return s.name;
+}
+function daySegments(dayIdx){
+  const stops = (TRIP.days[dayIdx] || {}).stops || [];
+  if(stops.length < 2) return [];
+  const perSeg = (isMobileUA() ? 3 : 9) + 2;    // 起點 + 中途點 + 終點
+  const segs = [];
+  for(let i = 0; i < stops.length - 1; i += perSeg - 1){
+    segs.push({ from:i, stops: stops.slice(i, i + perSeg) });
+  }
+  return segs;
+}
+function segUrl(chunk){
+  const pts = chunk.map(navQuery);
+  const mid = pts.slice(1,-1).map(encodeURIComponent).join("%7C");
+  let u = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pts[0])}`
+        + `&destination=${encodeURIComponent(pts[pts.length-1])}&travelmode=driving`;
+  if(mid) u += `&waypoints=${mid}`;
+  return u;
+}
+function renderNavButtons(dayIdx){
+  const box = document.getElementById("navBtns");
+  const segs = daySegments(dayIdx);
+  if(!segs.length){ box.innerHTML = ""; return; }
+  const one = segs.length === 1;
+  box.innerHTML = segs.map((sg,k)=>{
+    const a = sg.stops[0], b = sg.stops[sg.stops.length-1];
+    const label = one ? "開啟當天 Google 導航路線"
+      : `導航 第 ${sg.from+1}–${sg.from+sg.stops.length} 站 · ${a.time}→${b.time}`;
+    return `<a class="nav-btn" href="${segUrl(sg.stops)}" target="_blank" rel="noopener">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 20l-5.4 1.8L5.4 4 9 2.2 15 5l5.4-1.8L18.6 20 15 21.8z"/><path d="M9 2.2v18M15 5v16.8"/>
+      </svg><span>${esc(label)}</span></a>`;
+  }).join("")
+  + (one ? "" : `<p class="nav-note">Google 地圖在手機上一條路線最多只吃 3 個中途點，所以這天拆成 ${segs.length} 段（段與段共用一站接續），不會漏站。</p>`);
+}
+/* 從貼上的 Google Maps 網址抽座標 */
+function parseCoords(url){
+  if(!url) return null;
+  let m = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);        if(m) return [+m[1], +m[2]];
+  m = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);                 if(m) return [+m[1], +m[2]];
+  m = url.match(/[?&](?:q|query|daddr|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/); if(m) return [+m[1], +m[2]];
+  return null;
+}
+
+/* =====================================================================
+   地圖
+   ===================================================================== */
+let map = null, layer = null, leafletOK = false;
+function initMap(){
+  if(typeof L === "undefined"){ leafletOK = false; return; }
+  try{
+    map = L.map("map",{zoomControl:true, attributionControl:false, scrollWheelZoom:false});
+    const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18});
+    /* #13：離線時 Leaflet 程式還在、但圖磚全掛 → 只剩藍底。連續失敗就切成 SVG 備援地圖。 */
+    let tileFail = 0, tileOK = false;
+    tiles.on("tileload", ()=>{ tileOK = true; });
+    tiles.on("tileerror", ()=>{
+      if(tileOK || ++tileFail < 4) return;
+      console.warn("圖磚載入失敗，改用離線備用地圖");
+      leafletOK = false; drawMap();
+    });
+    tiles.addTo(map);
+    layer = L.layerGroup().addTo(map);
+    map.setView([24.80,125.28], 11);
+    leafletOK = true;
+  }catch(e){ console.warn("地圖初始化失敗，改用離線版", e); leafletOK = false; }
+}
+function drawMap(){
+  const stops = TRIP.days[curDay].stops;
+  const pinned = stops.map((s,i)=>({s,i})).filter(o => o.s.lat != null && o.s.lon != null);
+  const missing = stops.length - pinned.length;
+  document.getElementById("mapHint").textContent =
+    missing > 0 ? `點圖釘看店家 · ${missing} 站未定位` : "點圖釘看店家 · 可縮放";
+
+  if(!leafletOK){ drawFallback(pinned); return; }
+  document.getElementById("fallmap").classList.remove("on");
+  layer.clearLayers();
+  if(pinned.length === 0){ map.setView([24.80,125.28],11); return; }
+
+  const live = liveIndex(curDay);
+  const latlngs = pinned.map(o => [o.s.lat, o.s.lon]);
+  L.polyline(latlngs,{color:"#1e5a7a",weight:2.5,opacity:.75,dashArray:"3 7"}).addTo(layer);
+
+  pinned.forEach(o => {
+    const isNow = o.i === live.now;
+    const icon = L.divIcon({className:"", iconSize:[28,28], iconAnchor:[14,26],
+      html:`<div class="pin${isNow?" now":""}"><span>${o.i+1}</span></div>`});
+    const m = L.marker([o.s.lat,o.s.lon],{icon}).addTo(layer);
+    m.bindPopup(`<div class="pop"><b>${esc(o.s.name)}</b>
+      <div class="m">${o.s.time} · ${o.s.cat}</div>
+      <div class="btns"><a href="${mapUrl(o.s)}" target="_blank" rel="noopener">Google 地圖</a>
+      ${o.s.tel?`<a href="tel:${o.s.tel}">撥號</a>`:""}</div></div>`);
+  });
+  map.fitBounds(L.latLngBounds(latlngs).pad(.28), {animate:false});
+}
+/* 離線／載不到圖磚時的備用地圖：純 SVG，靠經緯度投影 */
+function drawFallback(pinned){
+  const svg = document.getElementById("fallmap");
+  svg.classList.add("on");
+  if(pinned.length === 0){ svg.innerHTML = ""; return; }
+  const lats = pinned.map(o=>o.s.lat), lons = pinned.map(o=>o.s.lon);
+  const pad = 46, W = 460, H = 260;
+  const la0 = Math.min(...lats), la1 = Math.max(...lats);
+  const lo0 = Math.min(...lons), lo1 = Math.max(...lons);
+  const sx = v => (la1===la0 && lo1===lo0) ? W/2 : pad + (v - lo0)/((lo1-lo0)||1)*(W-2*pad);
+  const sy = v => (la1===la0) ? H/2 : pad + (la1 - v)/((la1-la0)||1)*(H-2*pad-30);
+  const pts = pinned.map(o=>[sx(o.s.lon), sy(o.s.lat)]);
+  const live = liveIndex(curDay);
+  let html = `<rect width="460" height="260" fill="#cfe6ee"/>`;
+  html += `<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="#1e5a7a" stroke-width="2" stroke-dasharray="3 7" opacity=".7"/>`;
+  pinned.forEach((o,k)=>{
+    const [x,y] = pts[k], isNow = o.i === live.now;
+    html += `<g transform="translate(${x},${y})">
+      <circle r="12" fill="${isNow?"#57bf92":"#1e5a7a"}" stroke="#fff" stroke-width="2"/>
+      <text y="4.5" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">${o.i+1}</text></g>`;
+  });
+  svg.innerHTML = html;
+}
+
+/* =====================================================================
+   繪製行程
+   ===================================================================== */
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const IC = {
+  car:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 17h14M6.5 17V9.5L8 6h8l1.5 3.5V17"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/></svg>',
+  clock:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>',
+  bulb:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+  tel:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16.9v2.5a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1.1 3.6 2 2 0 0 1 3.1 1.4h2.5a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L6.7 9.3a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>'
+};
+
+function renderChips(){
+  const t = todayIndex();
+  document.getElementById("chips").innerHTML = TRIP.days.map((d,i)=>
+    `<button class="chip${i===curDay?" on":""}${i===t?" today":""}" data-d="${i}">
+       <b>Day ${i+1}</b><span>${fmtDate(d.date)}</span></button>`).join("");
+}
+
+function renderDay(){
+  const d = TRIP.days[curDay];
+  document.getElementById("dNum").innerHTML = `${curDay+1}<small> / ${TRIP.days.length}</small>`;
+  document.getElementById("dDate").textContent = `${fmtDate(d.date)} · ${d.dow}`;
+  document.getElementById("dTitle").textContent = d.title;
+
+  // 狀態徽章
+  const t = todayIndex(), phase = tripPhase(), bx = document.getElementById("dBadge");
+  const n = nowJP(), hhmm = String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");
+  if(phase === "after"){
+    bx.innerHTML = `<div class="badge-state done"><i></i>旅程已完成 · 回憶模式</div>`;
+  }else if(phase === "before"){
+    const days = Math.round((new Date(TRIP.days[0].date) - new Date(jpDateStr(nowJP())))/86400000);
+    bx.innerHTML = `<div class="badge-state"><i></i>還有 ${days} 天出發 · 日本時間 ${hhmm}</div>`;
+  }else if(t === curDay){
+    bx.innerHTML = `<div class="badge-state"><i></i>日本時間 ${hhmm} · 今天就是 Day ${t+1}</div>`;
+  }else{
+    bx.innerHTML = `<div class="badge-state" id="goToday"><i></i>今天是 Day ${t+1} · 點我回到今日行程</div>`;
+  }
+  if(READONLY){
+    const when = SHARED_AT ? new Date(SHARED_AT).toLocaleString("zh-TW",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+    bx.innerHTML += `<div class="badge-state ro"><i></i>家人版 · 唯讀${when?` · Rene 於 ${when} 更新`:""}</div>`;
+  }
+
+  const live = liveIndex(curDay);
+  document.getElementById("tl").innerHTML = d.stops.map((s,i)=>{
+    const cls = i===live.now ? " is-now" : (i===live.next ? " is-next" : "");
+    const tags = [`<span class="tag${["午餐","晚餐","咖啡"].includes(s.cat)?"":" "}">${esc(s.cat)}</span>`];
+    if(s.booked) tags.push(`<span class="tag booked">✓ 已預約 ${esc(s.booked)}</span>`);
+    if(i===live.now)  tags.push(`<span class="tag now">目前行程</span>`);
+    if(i===live.next) tags.push(`<span class="tag next">下一站</span>`);
+    return `<div class="row${cls}" id="stop-${i}">
+      <div class="rail"><div class="dot"></div><div class="rtime">${esc(s.time)}</div></div>
+      <div class="card">
+        <div class="tags">${tags.join("")}</div>
+        <div class="cname">${esc(s.name)}</div>
+        ${s.sub?`<div class="csub">${esc(s.sub)}</div>`:""}
+        ${s.drive?`<div class="meta">${IC.car}<span>${esc(s.drive)}</span></div>`:""}
+        ${s.hours?`<div class="meta">${IC.clock}<span>${esc(s.hours)}</span></div>`:""}
+        ${s.tip?`<div class="tip">${IC.bulb}<span>${esc(s.tip)}</span></div>`:""}
+        <div class="acts">
+          <a class="act" href="${mapUrl(s)}" target="_blank" rel="noopener">${IC.pin} 地圖</a>
+          ${s.tel?`<a class="act tel" href="tel:${esc(s.tel)}">${IC.tel} 撥號</a>`:""}
+        </div>
+      </div></div>`;
+  }).join("") || `<p class="note">這天還沒有行程，點右上「編輯行程」新增。</p>`;
+
+  const g = document.getElementById("goToday");
+  if(g) g.onclick = () => { curDay = todayIndex(); rerender(true); };
+  renderNavButtons(curDay);
+  drawMap();
+}
+
+function rerender(scrollToNow){
+  renderChips(); renderDay();
+  if(scrollToNow){
+    const live = liveIndex(curDay);
+    const target = live.now >= 0 ? live.now : 0;
+    const el = document.getElementById("stop-"+target);
+    if(el) setTimeout(()=>el.scrollIntoView({block:"center",behavior:"smooth"}), 220);
+  }
+}
+
+/* =====================================================================
+   編輯模式
+   ===================================================================== */
+let editing = null;   // {day, idx} ；idx = -1 代表新增
+const MANUAL_ORDER = new Set();   // #11a：手動拖過順序的那幾天，不再自動照時間重排
+
+function showEdit(on){
+  document.getElementById("viewTrip").classList.toggle("hide", on);
+  document.getElementById("viewEdit").classList.toggle("hide", !on);
+  document.body.classList.toggle("editing", on);
+  if(on) renderEditList();
+}
+function renderEditList(){
+  document.getElementById("edTitle").textContent = `編輯 Day ${curDay+1} 行程`;
+  const stops = TRIP.days[curDay].stops;
+  document.getElementById("edList").innerHTML =
+    stops.map((s,i)=>`<div class="ed-item" data-i="${i}">
+        <div class="handle" data-drag>
+          <svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 8h16M4 16h16"/></svg>
+        </div>
+        <div class="ed-info"><b>${esc(s.name)}</b><span>${esc(s.time)} · ${esc(s.cat)}${s.lat!=null?" · 已定位":""}</span></div>
+        <button class="ed-act" data-edit="${i}">編輯</button>
+        <button class="ed-act del" data-del="${i}">刪除</button>
+      </div>`).join("")
+    + `<div class="ed-btns">
+         <button id="btnAdd">＋ 新增行程</button>
+         <button class="warn" id="btnReset">恢復原始行程</button>
+       </div>
+       <div class="ed-btns"><button id="btnShare" style="color:#4a4a86">📤 產生家人版連結（唯讀）</button></div>
+       <div id="shareOut"></div><div id="edMsg"></div>`;
+  bindDrag();
+}
+function edMsg(text){
+  const m = document.getElementById("edMsg");
+  if(!m) return;
+  m.innerHTML = `<div class="saved">${esc(text)}</div>`;
+  setTimeout(()=>{ if(m) m.innerHTML=""; }, 2200);
+}
+
+/* 觸控 + 滑鼠都能用的拖曳排序 */
+function bindDrag(){
+  const list = document.getElementById("edList");
+  let dragEl=null, startY=0, items=[], fromIdx=-1;
+
+  list.querySelectorAll("[data-drag]").forEach(h=>{
+    h.addEventListener("pointerdown", e=>{
+      e.preventDefault();
+      dragEl = h.closest(".ed-item");
+      fromIdx = +dragEl.dataset.i;
+      startY = e.clientY;
+      items = [...list.querySelectorAll(".ed-item")];
+      dragEl.classList.add("dragging");
+      h.setPointerCapture(e.pointerId);
+    });
+    h.addEventListener("pointermove", e=>{
+      if(!dragEl) return;
+      const dy = e.clientY - startY;
+      dragEl.style.transform = `translateY(${dy}px)`;
+      const mid = dragEl.getBoundingClientRect().top + dragEl.offsetHeight/2;
+      items.forEach(it=>{
+        if(it===dragEl) return;
+        const r = it.getBoundingClientRect();
+        it.classList.toggle("ghost", mid > r.top && mid < r.bottom);
+      });
+    });
+    /* #11b：pointercancel（iOS 把手勢收走時會發）不可以當成「放開」提交排序，
+       否則會在使用者沒有真的拖曳的情況下把順序改掉。只還原畫面。 */
+    const cancel = ()=>{
+      if(!dragEl) return;
+      dragEl.style.transform=""; dragEl.classList.remove("dragging");
+      items.forEach(it=>it.classList.remove("ghost"));
+      dragEl = null;
+    };
+    const end = e=>{
+      if(!dragEl) return;
+      const mid = dragEl.getBoundingClientRect().top + dragEl.offsetHeight/2;
+      let toIdx = fromIdx;
+      items.forEach(it=>{
+        if(it===dragEl) return;
+        const r = it.getBoundingClientRect();
+        if(mid > r.top && mid < r.bottom) toIdx = +it.dataset.i;
+      });
+      dragEl.style.transform=""; dragEl.classList.remove("dragging");
+      items.forEach(it=>it.classList.remove("ghost"));
+      dragEl = null;
+      if(toIdx !== fromIdx){
+        const arr = TRIP.days[curDay].stops;
+        arr.splice(toIdx, 0, arr.splice(fromIdx,1)[0]);
+        MANUAL_ORDER.add(curDay);              // #11a：這天已被手動排過，之後別自動照時間重排
+        const ok = saveState(); renderEditList();
+        edMsg(ok === false ? "順序已改，但這台裝置存不了，關掉就會還原" : "順序已更新（只存在這支手機）");
+      }
+    };
+    h.addEventListener("pointerup", end);
+    h.addEventListener("pointercancel", cancel);
+  });
+}
+
+/* ---- 編輯表單 ---- */
+function openForm(idx){
+  editing = {day:curDay, idx};
+  const s = idx >= 0 ? TRIP.days[curDay].stops[idx] : {time:"12:00",cat:"景點",name:"",sub:""};
+  document.getElementById("fmTitle").textContent = idx >= 0 ? "編輯行程" : "新增行程";
+  document.getElementById("fCat").innerHTML = CATS.map(c=>`<option${c===s.cat?" selected":""}>${c}</option>`).join("");
+  document.getElementById("fDay").innerHTML = TRIP.days.map((d,i)=>
+    `<option value="${i}"${i===curDay?" selected":""}>Day ${i+1}（${fmtDate(d.date)} ${d.dow}）</option>`).join("");
+  fmt("fTime", s.time); fmt("fName", s.name); fmt("fSub", s.sub||"");
+  fmt("fDrive", s.drive||""); fmt("fHours", s.hours||""); fmt("fTel", s.tel||"");
+  fmt("fBooked", s.booked||""); fmt("fTip", s.tip||"");
+  fmt("fUrl", s.gurl||"");
+  showUrlMsg(s.lat!=null ? [s.lat,s.lon] : null, !!s.gurl);
+  document.getElementById("fmSheet").classList.add("on");
+}
+const fmt = (id,v) => document.getElementById(id).value = v;
+function showUrlMsg(coords, hasUrl){
+  const el = document.getElementById("fUrlMsg");
+  if(coords) el.innerHTML = `<div class="ok">✓ 已定位 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)} —— 地圖上會出現圖釘</div>`;
+  else if(hasUrl) el.innerHTML = `<div class="bad">短連結沒有座標，地圖上不會有圖釘（「地圖」按鈕仍可用）</div>`;
+  else el.innerHTML = "";
+}
+document.getElementById("fUrl").addEventListener("input", e=>{
+  showUrlMsg(parseCoords(e.target.value), !!e.target.value.trim());
+});
+document.getElementById("fmSave").onclick = ()=>{
+  const v = id => document.getElementById(id).value.trim();
+  const name = v("fName");
+  if(!name){ alert("請填名稱"); return; }
+  const url = v("fUrl"), c = parseCoords(url);
+  const prev = editing.idx >= 0 ? TRIP.days[editing.day].stops[editing.idx] : null;
+
+  /* 以原本那一站為底再覆蓋表單欄位 —— 不可以整個重建，
+     否則只改個副標題就會把既有的座標／精選地圖查詢弄丟（圖釘會消失）。 */
+  const s = Object.assign({}, prev, {
+    time:v("fTime")||"12:00", cat:v("fCat"), name, sub:v("fSub"),
+    drive:v("fDrive"), hours:v("fHours"), tel:v("fTel"),
+    booked:v("fBooked"), tip:v("fTip")
+  });
+
+  if(url){
+    s.gurl = url;
+    if(c){                                   // 完整連結：座標優先，蓋掉舊定位
+      s.lat = c[0]; s.lon = c[1]; delete s.mapq;
+    }else{                                   // 短連結：拿來當地圖連結，舊座標不再適用
+      s.mapq = url; delete s.lat; delete s.lon;
+    }
+  }else if(!prev){
+    s.mapq = name;                           // 全新的一站又沒給連結 → 用名稱搜尋
+  }
+  /* 舊的 mapq 只是從舊名稱來的，改名後要跟著改；精選的查詢字串則保留 */
+  if(prev && prev.mapq && prev.mapq === prev.name && name !== prev.name) s.mapq = name;
+
+  const from = editing.day;
+  const to   = +document.getElementById("fDay").value;
+  const byTime = (a,b)=>minutes(a.time)-minutes(b.time);
+  let moved = false;
+  if(editing.idx >= 0 && to !== from){
+    TRIP.days[from].stops.splice(editing.idx, 1);   // 從原本那天拿掉
+    TRIP.days[to].stops.push(s);
+    moved = true;
+  }else if(editing.idx >= 0){
+    TRIP.days[from].stops[editing.idx] = s;
+  }else{
+    TRIP.days[to].stops.push(s);
+    moved = to !== from;
+  }
+  /* #11a：只有「新增」或「時間真的改了」才重排；否則使用者手動拖好的順序會被洗掉。
+     手動排過的那天，除非是新增進來的，一律不動順序。 */
+  const timeChanged = prev ? prev.time !== s.time : true;
+  const shouldSort = d => !MANUAL_ORDER.has(d) || timeChanged || editing.idx < 0 || moved;
+  if(shouldSort(from)) TRIP.days[from].stops.sort(byTime);
+  if(to !== from && shouldSort(to)) TRIP.days[to].stops.sort(byTime);
+
+  const ok = saveState();
+  document.getElementById("fmSheet").classList.remove("on");
+  renderEditList();
+  if(ok === false) edMsg("改好了，但這台裝置存不了，關掉就會還原");
+  else edMsg(moved ? `已移到 Day ${to+1}（${fmtDate(TRIP.days[to].date)}）` : "已儲存");
+};
+
+/* ---- 產生家人版（唯讀）連結 ---- */
+async function makeShareLink(){
+  const out = document.getElementById("shareOut");
+  out.innerHTML = `<p class="share-meta">產生中…</p>`;
+  try{
+    const payload = await encodeTrip(TRIP);
+    const base = location.origin === "null"
+      ? location.href.split("#")[0]                     // 本機檔案
+      : location.origin + location.pathname;
+    const url = base + "#trip=" + payload;
+    const kb = (url.length/1024).toFixed(1);
+    const local = base.startsWith("file:");
+    out.innerHTML = `<div class="share-out">
+      <textarea readonly id="shareUrl">${esc(url)}</textarea>
+      <div class="ed-btns">
+        <button id="btnCopy">複製連結</button>
+        ${navigator.share?`<button id="btnSend" style="color:#4a4a86">分享到 LINE…</button>`:""}
+      </div>
+      <p class="share-meta">長度 ${kb} KB。家人打開這個連結會看到<b>你現在這一版</b>的行程，而且沒有編輯按鈕、改不到你的資料。
+      ${local?`<br><b style="color:#c4553d">⚠️ 現在是本機檔案，這個連結只有你自己的電腦打得開。</b>要讓家人能開，必須先把 App 放到一個網址上（做法 B）。`:""}
+      <br>之後你每改一次行程，要重新按一次這顆按鈕、把新連結再貼給家人。</p>
+    </div>`;
+    const copy = document.getElementById("btnCopy");
+    if(copy) copy.onclick = async ()=>{
+      try{ await navigator.clipboard.writeText(url); edMsg("連結已複製"); }
+      catch(e){ document.getElementById("shareUrl").select(); edMsg("請長按上面的欄位複製"); }
+    };
+    const send = document.getElementById("btnSend");
+    if(send) send.onclick = ()=>navigator.share({title:"宮古島行程 8/5–8/9", url}).catch(()=>{});
+  }catch(e){
+    console.warn("產生連結失敗", e);
+    out.innerHTML = `<p class="share-meta" style="color:#c4553d">產生失敗：${esc(e.message)}</p>`;
+  }
+}
+
+/* =====================================================================
+   工具箱
+   ===================================================================== */
+const TABS = ["航班","住宿","租車","天氣","必買"];
+function renderToolbox(){
+  document.getElementById("tbTabs").innerHTML =
+    TABS.map((t,i)=>`<button class="tb-tab${i===0?" on":""}" data-t="${i}">${t}</button>`).join("");
+  document.getElementById("tbPanels").innerHTML = `
+    <div class="panel on" data-p="0">${panelFlights()}</div>
+    <div class="panel" data-p="1">${panelHotel()}</div>
+    <div class="panel" data-p="2">${panelRental()}</div>
+    <div class="panel" data-p="3">${panelWeather()}</div>
+    <div class="panel" data-p="4">${panelBuy()}</div>`;
+  bindToolbox();
+}
+function panelFlights(){
+  return `<div class="pcard"><h3><span class="ic">✈️</span>航班（星宇航空）</h3>
+    ${FLIGHTS.map(f=>`
+      <div class="fl-head"><span class="lbl">${f.dir} · ${f.date}</span><span class="no">${f.no}</span></div>
+      <div class="fl">
+        <div class="side"><div class="t">${f.dep}</div><div class="p">${f.from}</div></div>
+        <div class="mid"><div class="line"></div>▸</div>
+        <div class="side"><div class="t">${f.arr}</div><div class="p">${f.to}</div></div>
+      </div>`).join("")}
+    <p class="note">時間皆為當地時間（日本比台灣快 1 小時）· 出發前 48 小時記得線上報到 · 下地島機場代碼 SHI，和宮古機場 MMY 是不同機場，別跑錯。</p>
+  </div>`;
+}
+function panelHotel(){
+  const h = EXTRA.hotel;
+  return `<div class="pcard"><h3><span class="ic">🏨</span>住宿</h3>
+    <dl class="kv">
+      <dt>飯店</dt><dd>Hilton 沖繩宮古島度假酒店<br><span style="font-weight:400;color:#8a9aa4;font-size:13px">ヒルトン沖縄宮古島リゾート</span></dd>
+      <dt>地址</dt><dd style="font-weight:400">沖縄県宮古島市平良久貝 550-7</dd>
+      <dt>日期</dt><dd class="mono">8/5（三）入住 – 8/9（日）退房 · 4 晚</dd>
+      <dt>電話</dt><dd class="mono"><a href="tel:0980-75-5500" style="color:#2aa8a8;text-decoration:none">0980-75-5500</a></dd>
+      <dt>地圖</dt><dd><a href="https://www.google.com/maps/search/?api=1&query=24.801441,125.261123" target="_blank" rel="noopener" style="color:#1e5a7a;text-decoration:none">開啟 Google 地圖 ↗</a></dd>
+    </dl>
+    <div style="height:1px;background:#efe9dd;margin:14px 0"></div>
+    <div class="two">
+      <div class="field"><label>入住時間</label><input data-x="hotel.ci" value="${esc(h.ci)}" placeholder="例 15:00" /></div>
+      <div class="field"><label>退房時間</label><input data-x="hotel.co" value="${esc(h.co)}" placeholder="例 11:00" /></div>
+    </div>
+    <div class="field"><label>訂房確認號</label><input data-x="hotel.conf" value="${esc(h.conf)}" placeholder="從訂房確認信抄過來" /></div>
+    <p class="note">入住／退房時間 Hilton 官網沒有公開，這三格請你自己從訂房確認信填。填了會自動存在這支手機。</p>
+  </div>`;
+}
+function panelRental(){
+  return `<div class="pcard"><h3><span class="ic">🚗</span>租車（Budget Rent a Car）</h3>
+    <dl class="kv">
+      <dt>店舖</dt><dd>下地島空港店<br><span style="font-weight:400;color:#8a9aa4;font-size:13px">沖縄県宮古島市下地島 166-1</span></dd>
+      <dt>電話</dt><dd class="mono"><a href="tel:0980-66-0018" style="color:#2aa8a8;text-decoration:none">0980-66-0018</a></dd>
+      <dt>營業</dt><dd class="mono" style="font-weight:400">店舖 9:00–18:00<br>櫃檯 9:00–19:00<br>還車受理 9:00–18:30</dd>
+      <dt>取車</dt><dd class="mono">8/5（三）10:30</dd>
+      <dt>還車</dt><dd class="mono">8/9（日）09:00 · 同店</dd>
+      <dt>車型</dt><dd>SUV · 四大一小</dd>
+      <dt>攜帶</dt><dd style="font-weight:400">台灣駕照＋日文譯本＋護照<br><span style="color:#c4553d;font-weight:600">缺一不可</span></dd>
+    </dl>
+    <div class="field" style="margin-top:14px"><label>租車預約編號</label><input data-x="rental.conf" value="${esc(EXTRA.rental.conf)}" placeholder="從預約確認信抄過來" /></div>
+    <div class="tip" style="margin-top:4px">${IC.bulb}<span><b>櫃檯不在航廈裡。</b>落地領完行李先打電話，他們開車來接，旺季要等 15–20 分。<br><br><b>回程要注意：</b>8/9 你 10:35 起飛，但 Budget 9:00 才開門 —— 一開門就要到。油最好 8/8 晚上先加滿，機場附近加油站也是 9 點才開。</span></div>
+  </div>`;
+}
+function panelWeather(){
+  return `<div class="pcard"><h3><span class="ic">⛅</span>行程天氣（8/5–8/9）</h3>
+    <div class="wx" id="wxBox"><p class="note">讀取中…</p></div>
+    <p class="note" id="wxNote">資料來源 Open-Meteo（免費、免申請）。抓到的預報會存在手機，出國沒網路時顯示最後一次抓到的結果。八月宮古島是颱風季，出發前務必再看一次。</p>
+  </div>`;
+}
+function panelBuy(){
+  const all = BUY.reduce((n,g)=>n+g.items.length,0);
+  const done = Object.values(EXTRA.buy).filter(Boolean).length;
+  return `<div class="pcard"><h3><span class="ic">🛍️</span>必買 & 注意</h3>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#8a9aa4">
+        <span>採買進度</span><span class="mono" id="buyCount">${done} / ${all}</span></div>
+      <div class="prog"><i id="buyBar" style="width:${all?done/all*100:0}%"></i></div>
+    </div>
+    ${BUY.map((g,gi)=>`<div class="pcard"><h3 style="font-size:15px"><span class="ic">${["🧂","🍶","🍌","🎒"][gi]||"📦"}</span>${esc(g.group)}</h3>
+      ${g.items.map(([t,s],ii)=>{
+        const k = `${gi}-${ii}`;
+        return `<div class="buy-item${EXTRA.buy[k]?" done":""}" data-buy="${k}">
+          <div class="box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"><path d="M4 12.5l5.2 5.2L20 7"/></svg></div>
+          <div><div class="bt">${esc(t)}</div>${s?`<div class="bs">${esc(s)}</div>`:""}</div></div>`;
+      }).join("")}</div>`).join("")}`;
+}
+
+function bindToolbox(){
+  document.querySelectorAll(".tb-tab").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll(".tb-tab").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on", p.dataset.p===b.dataset.t));
+    if(b.dataset.t==="3") loadWeather();
+  });
+  document.querySelectorAll("[data-buy]").forEach(el=>el.onclick=()=>{
+    const k = el.dataset.buy;
+    EXTRA.buy[k] = !EXTRA.buy[k]; saveExtra();
+    el.classList.toggle("done", EXTRA.buy[k]);
+    const all = BUY.reduce((n,g)=>n+g.items.length,0);
+    const done = Object.values(EXTRA.buy).filter(Boolean).length;
+    document.getElementById("buyCount").textContent = `${done} / ${all}`;
+    document.getElementById("buyBar").style.width = (all?done/all*100:0) + "%";
+  });
+  document.querySelectorAll("[data-x]").forEach(inp=>{
+    if(READONLY){ inp.readOnly = true; inp.style.background = "#f4f1ea"; return; }
+    inp.oninput = ()=>{
+      const [grp,key] = inp.dataset.x.split(".");
+      EXTRA[grp][key] = inp.value; saveExtra();
+    };
+  });
+}
+
+/* ---- 天氣：Open-Meteo，免金鑰 ---- */
+const WX_ICON = {0:"☀️",1:"🌤",2:"⛅",3:"☁️",45:"🌫",48:"🌫",51:"🌦",53:"🌦",55:"🌦",
+  61:"🌧",63:"🌧",65:"🌧",71:"🌨",80:"🌦",81:"🌧",82:"⛈",95:"⛈",96:"⛈",99:"⛈"};
+let wxLoaded = false;
+async function loadWeather(){
+  const box = document.getElementById("wxBox"); if(!box) return;
+  const cached = EXTRA.wx;
+  /* #4：工具箱每次開啟都會重建面板，所以就算抓過了也必須把快取重畫到「這個新的」wxBox，
+     不能直接 return，否則第二次打開會永遠停在「讀取中…」。 */
+  if(cached) paintWeather(cached.data, cached.at);
+  if(wxLoaded){
+    if(!cached) box.innerHTML = `<p class="note">抓不到天氣，等有網路時再打開一次。</p>`;
+    return;
+  }
+  try{
+    const u = "https://api.open-meteo.com/v1/forecast?latitude=24.80&longitude=125.28"
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+      + "&timezone=Asia%2FTokyo&start_date=2026-08-05&end_date=2026-08-09";
+    const r = await fetch(u); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    EXTRA.wx = {data:j.daily, at:new Date().toISOString()}; saveExtra();
+    paintWeather(j.daily, EXTRA.wx.at); wxLoaded = true;
+  }catch(e){
+    if(!cached) box.innerHTML = `<p class="note">抓不到天氣（可能沒有網路）。有網路時再打開一次就會存起來。</p>`;
+    console.warn("天氣讀取失敗", e);
+  }
+}
+const WK = ["日","一","二","三","四","五","六"];
+function paintWeather(d, at){
+  const box = document.getElementById("wxBox"); if(!box || !d) return;
+  const today = jpDateStr(nowJP());
+  box.innerHTML = d.time.map((t,i)=>{
+    const [y,m,dd] = t.split("-");
+    const wk = WK[new Date(+y, +m-1, +dd).getDay()];
+    const dayNo = TRIP.days.findIndex(x=>x.date === t);
+    return `<div class="wxd${t===today?" today":""}">
+      <div class="d"><b>${+m}/${+dd}</b>（${wk}）${dayNo>=0?` D${dayNo+1}`:""}</div>
+      <div class="e">${WX_ICON[d.weather_code[i]] || "⛅"}</div>
+      <div class="tt"><b>${Math.round(d.temperature_2m_max[i])}°</b> <span>/ ${Math.round(d.temperature_2m_min[i])}°</span></div>
+      <div class="pp">☂ ${d.precipitation_probability_max[i]}%</div></div>`;
+  }).join("");
+  const n = document.getElementById("wxNote");
+  if(n && at) n.innerHTML = `最後更新：${new Date(at).toLocaleString("zh-TW")}<br>` + n.innerHTML.split("<br>").slice(-1)[0];
+}
+
+/* =====================================================================
+   事件綁定
+   ===================================================================== */
+document.getElementById("chips").onclick = e=>{
+  const b = e.target.closest(".chip"); if(!b) return;
+  curDay = +b.dataset.d;
+  /* 編輯模式下切 Day，下面的清單必須跟著換。
+     否則清單停在舊的那天，但「編輯／刪除」是用 curDay 取資料 ——
+     會在畫面完全看不出來的情況下改到、甚至刪到別天的站。 */
+  const inEdit = !document.getElementById("viewEdit").classList.contains("hide");
+  renderChips();
+  renderDay();
+  if(inEdit){ renderEditList(); }
+  else { window.scrollTo({top:0, behavior:"smooth"}); }
+};
+document.getElementById("btnEdit").onclick = ()=>showEdit(true);
+document.getElementById("btnBack").onclick = ()=>{ showEdit(false); rerender(false); };
+document.getElementById("edList").addEventListener("click", e=>{
+  const ed = e.target.closest("[data-edit]"), del = e.target.closest("[data-del]");
+  if(ed) openForm(+ed.dataset.edit);
+  if(del){
+    const i = +del.dataset.del;
+    if(confirm(`刪除「${TRIP.days[curDay].stops[i].name}」？`)){
+      TRIP.days[curDay].stops.splice(i,1); saveState(); renderEditList(); edMsg("已刪除");
+    }
+  }
+  if(e.target.id === "btnAdd") openForm(-1);
+  if(e.target.id === "btnShare") makeShareLink();
+  if(e.target.id === "btnReset"){
+    if(confirm("把 5 天行程全部還原成出發前的版本？你改過的內容會不見。")){
+      TRIP = JSON.parse(JSON.stringify(DEFAULT_TRIP));
+      localStorage.removeItem(LS);
+      renderEditList(); edMsg("已恢復原始行程");
+    }
+  }
+});
+document.getElementById("fab").onclick = ()=>{ renderToolbox(); document.getElementById("tbSheet").classList.add("on"); };
+document.querySelectorAll("[data-close]").forEach(el=>el.onclick=()=>el.closest(".sheet").classList.remove("on"));
+
+/* =====================================================================
+   啟動
+   ===================================================================== */
+/* ---- Android（Chrome）用的 App 資訊檔：讓主畫面圖示和名稱正確 ---- */
+(function addManifest(){
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="112" fill="#1e5a7a"/>
+    <circle cx="256" cy="182" r="74" fill="#f4d06f"/>
+    <path d="M56 336c40 0 40-28 80-28s40 28 80 28 40-28 80-28 40 28 80 28 40-28 80-28"
+      stroke="#7fdbd4" stroke-width="26" fill="none" stroke-linecap="round"/>
+    <path d="M56 412c40 0 40-28 80-28s40 28 80 28 40-28 80-28 40 28 80 28 40-28 80-28"
+      stroke="#cfeae7" stroke-width="26" fill="none" stroke-linecap="round"/></svg>`;
+  const icon = "data:image/svg+xml," + encodeURIComponent(svg);
+  const mf = {
+    name:"宮古島 5天4夜", short_name:"宮古島", start_url:".", scope:".",
+    display:"standalone", orientation:"portrait",
+    background_color:"#f7f3ea", theme_color:"#1e5a7a", lang:"zh-Hant",
+    icons:[{src:icon, sizes:"any", type:"image/svg+xml", purpose:"any"}]
+  };
+  try{
+    const l = document.createElement("link");
+    l.rel = "manifest";
+    l.href = "data:application/json," + encodeURIComponent(JSON.stringify(mf));
+    document.head.appendChild(l);
+  }catch(e){ console.warn("manifest 建立失敗", e); }
+})();
+
+/* ---- 本機儲存能不能用？（file:// 在手機上常常不行） ---- */
+function storageWorks(){
+  try{ localStorage.setItem("__probe","1"); localStorage.removeItem("__probe"); return true; }
+  catch(e){ return false; }
+}
+const CAN_SAVE = storageWorks();
+if(!CAN_SAVE && !READONLY){
+  const w = document.createElement("div");
+  w.style.cssText = "background:#fbe9e4;border-bottom:1px solid #f0cabf;color:#9c3d26;"
+    + "font-size:12.5px;line-height:1.6;padding:10px 16px;text-align:center";
+  w.innerHTML = "⚠️ 這台裝置不能儲存修改（用本機檔案打開時的限制）。<br>行程照樣看得到，但你改的東西關掉就會不見。";
+  document.querySelector(".app").prepend(w);
+}
+
+initMap();
+document.body.classList.toggle("readonly", READONLY);
+
+function boot(){
+  const t0 = todayIndex();
+  curDay = t0 >= 0 ? t0 : (tripPhase() === "after" ? TRIP.days.length-1 : 0);
+  rerender(t0 >= 0);
+}
+/* 進入家人版（唯讀）；boot 與貼上連結時都走這裡 */
+function enterShared(payload){
+  return decodeTrip(payload).then(p=>{
+    if(p && p.t && p.t.days && p.t.days.length){ TRIP = p.t; SHARED_AT = p.at; }
+    READONLY = true;
+    document.body.classList.add("readonly");
+    showEdit(false);
+    boot();
+  }).catch(e=>{
+    /* #3：絕對不可以默默顯示原始行程假裝成功 —— 家人會照著過期的行程走。 */
+    console.warn("家人版連結解析失敗", e);
+    READONLY = true; document.body.classList.add("readonly");
+    const w = document.createElement("div");
+    w.style.cssText = "background:#fbe4de;border-bottom:2px solid #e0a494;color:#8c2f16;"
+      + "font-size:13.5px;line-height:1.7;padding:14px 16px;text-align:center;font-weight:600";
+    w.innerHTML = "⚠️ <b>這個連結打不開，下面顯示的不是最新行程</b><br>"
+      + "<span style='font-weight:400'>" + esc(e.message || "連結可能被截斷或損壞")
+      + "。請 Rene 重新產生一次連結傳給你，先不要照下面的行程走。</span>";
+    document.querySelector(".app").prepend(w);
+    boot();
+  });
+}
+if(SHARED) enterShared(SHARED); else boot();
+
+window.addEventListener("hashchange", ()=>{
+  if(location.hash.startsWith("#trip=")) enterShared(location.hash.slice(6));
+});
+// 每分鐘更新「目前行程」高亮
+setInterval(()=>{ if(document.getElementById("viewEdit").classList.contains("hide")) renderDay(); }, 60000);
+window.addEventListener("load", ()=>{ if(leafletOK && map) setTimeout(()=>{ map.invalidateSize(); drawMap(); }, 300); });
+</script>
+</body>
+</html>
