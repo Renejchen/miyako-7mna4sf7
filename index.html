@@ -555,7 +555,10 @@ async function decodeTrip(s){
    - 其他             → 預設唯讀。發布之後家人拿到的就是乾淨網址，不該讓他們改到東西。 */
 const SHARED = location.hash.startsWith("#trip=") ? location.hash.slice(6) : null;
 const OWNER_KEY = "miyako2026.owner";
-if(location.hash === "#edit"){
+/* 編輯權用一組猜不到的鑰匙，只有拿到這個連結的人（Rene 和家人1）才會變成可編輯。
+   其他人開乾淨網址一律唯讀。 */
+const EDIT_HASH = "#edit-9fq3m2";
+if(location.hash === EDIT_HASH){
   try{ localStorage.setItem(OWNER_KEY, "1"); }catch(e){}
   history.replaceState(null, "", location.pathname + location.search);
 }
