@@ -549,9 +549,19 @@ async function decodeTrip(s){
   const p = JSON.parse(json);
   return {t: applyDiff(p.d), at: p.at};
 }
-/* 有 #trip= 就進入家人版：唯讀、不吃也不寫本機行程 */
+/* 誰可以編輯：
+   - 網址帶 #trip=…  → 家人版（唯讀，看 Rene 傳來的那一版）
+   - 網址帶 #edit     → 車主版（可編輯），並記在這台裝置上，之後直接開網址也還是可編輯
+   - 其他             → 預設唯讀。發布之後家人拿到的就是乾淨網址，不該讓他們改到東西。 */
 const SHARED = location.hash.startsWith("#trip=") ? location.hash.slice(6) : null;
-let READONLY = !!SHARED, SHARED_AT = null;
+const OWNER_KEY = "miyako2026.owner";
+if(location.hash === "#edit"){
+  try{ localStorage.setItem(OWNER_KEY, "1"); }catch(e){}
+  history.replaceState(null, "", location.pathname + location.search);
+}
+let IS_OWNER = false;
+try{ IS_OWNER = localStorage.getItem(OWNER_KEY) === "1"; }catch(e){}
+let READONLY = !!SHARED || !IS_OWNER, SHARED_AT = null;
 
 let TRIP  = READONLY ? JSON.parse(JSON.stringify(DEFAULT_TRIP)) : loadState();
 let EXTRA = loadExtra();
